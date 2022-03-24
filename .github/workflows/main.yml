@@ -8,10 +8,9 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: karcherm/action-install-watcom@main
-      - run: |
-          wcl -2 dumpmem.c
-          wcl -3 pci.c
-        shell: bash
+      - run: wcl -2 dumpmem.c
+      - run: wcl -3 pci.c
       - uses: actions/upload-artifact@v3
         with:
+          name: dostools
           path: "*.exe"
