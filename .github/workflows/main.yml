@@ -14,4 +14,4 @@ jobs:
         shell: bash
       - uses: actions/upload-artifact@v3
         with:
-          path: *.exe
+          path: "*.exe"
