@@ -292,18 +292,46 @@ void dump_bridge(dev_addr addr)
             printf("  bus %d -> %d, downstream %d..%d\n", primary_bus, secondary_bus, secondary_bus + 1, limit_bus);
     }
     if (pci_read_word(addr, 0x20, &memlow) >= 0 &&
-        pci_read_word(addr, 0x22, &memhigh) >= 0)
+        pci_read_word(addr, 0x22, &memhigh) >= 0 &&
+        memlow != 0 &&
+        memhigh >= memlow)
     {
-        printf("  forwarding MMIO %08lx..%08lx (%s)\n",
-              (unsigned long)memlow << 16, ((unsigned long)memhigh << 16) | 0xFFFFFL,
+        printf("  forwarding MMIO %04x0000..%04xffff (%s)\n",
+              memlow, memhigh | 0x000F,
               nice_size((unsigned long)(((memhigh-memlow) & 0xFFF0) + 0x10) << 16));
     }
     if (pci_read_word(addr, 0x24, &memlow) >= 0 &&
-        pci_read_word(addr, 0x26, &memhigh) >= 0)
+        pci_read_word(addr, 0x26, &memhigh) >= 0 &&
+        memlow != 0 &&
+        memhigh >= memlow)
     {
-        printf("  forwarding MEM  %08lx..%08lx (%s)\n",
-              (unsigned long)memlow << 16, ((unsigned long)memhigh << 16) | 0xFFFFFL,
-              nice_size((unsigned long)(((memhigh-memlow) & 0xFFF0) + 0x10) << 16));
+        unsigned int memtype;
+        memtype = memlow & 0x000F;
+        memlow &= 0xFFF0;
+        memhigh |= 0x000F;
+        if (memtype == 0)
+        {
+            printf("  forwarding MEM  %04x0000..%04lxffff (%s)\n",
+                  memlow, memhigh,
+                  nice_size((unsigned long)(((memhigh-memlow) & 0xFFF0) + 0x10) << 16));            
+        }
+        else if (memtype == 1)
+        {
+            unsigned long memlow64, memhigh64;
+            if (pci_read_dword(addr, 0x28, &memlow64) >= 0 &&
+                pci_read_dword(addr, 0x2C, &memhigh64) >= 0)
+            {
+                // Range sizes above 4G result in wrong output.
+                // This is a won't-fix-issue for now.
+                printf("  forwarding MEM  %08lx%04x0000..%08lx%04xffff (%s)\n",
+                      memlow64, memlow, memhigh64, memhigh,
+                      nice_size((unsigned long)(((memhigh-memlow) & 0xFFF0) + 0x10) << 16));
+            }
+        }
+        else
+        {
+            printf("  unsupported MEM type %d\n", memtype);
+        }
     }
 }
 
