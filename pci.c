@@ -258,7 +258,7 @@ void dump_rombar(dev_addr addr, unsigned bar)
             unsigned long barsize;
             if (read_barsize(addr, bar, barval, CMD_MEM, &barsize) >= 0 &&
                 barsize != 0)
-                printf("  ROM (diabled), area size %08lx (%s)\n", barsize + 1, nice_size(barsize + 1));
+                printf("  ROM (disabled), area size %08lx (%s)\n", barsize + 1, nice_size(barsize + 1));
         }
     }
 }
