@@ -294,14 +294,16 @@ void dump_bridge(dev_addr addr)
     if (pci_read_word(addr, 0x20, &memlow) >= 0 &&
         pci_read_word(addr, 0x22, &memhigh) >= 0)
     {
-        printf("  forwarding MMIO %08lx..%08lx\n",
-              (unsigned long)memlow << 16, ((unsigned long)memhigh << 16) | 0xFFFFFL);
+        printf("  forwarding MMIO %08lx..%08lx (%s)\n",
+              (unsigned long)memlow << 16, ((unsigned long)memhigh << 16) | 0xFFFFFL,
+              nice_size((unsigned long)(((memhigh-memlow) & 0xFFF0) + 0x10) << 16));
     }
     if (pci_read_word(addr, 0x24, &memlow) >= 0 &&
         pci_read_word(addr, 0x26, &memhigh) >= 0)
     {
-        printf("  forwarding MEM  %08lx..%08lx\n",
-              (unsigned long)memlow << 16, ((unsigned long)memhigh << 16) | 0xFFFFFL);
+        printf("  forwarding MEM  %08lx..%08lx (%s)\n",
+              (unsigned long)memlow << 16, ((unsigned long)memhigh << 16) | 0xFFFFFL,
+              nice_size((unsigned long)(((memhigh-memlow) & 0xFFF0) + 0x10) << 16));
     }
 }
 
