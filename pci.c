@@ -187,10 +187,19 @@ int read_barsize(dev_addr addr, unsigned int bar, unsigned long oldbar, unsigned
     status |= pci_write_dword(addr, bar, oldbar);
     status |= pci_write_word(addr, 4, oldcmd);
 
-    // if a device doesn't implement top 16 bits (for I/O ports)
-    // fake them
-    if ((localsize & 0x18000) == 0x8000)
-       localsize |= 0xFFFF0000UL;
+    if (cmdbit == CMD_MEM)
+    {
+        // clear memory type flags
+        localsize &= ~0xFUL;
+    }
+    else
+    {
+        // clear IO bit and reserved extra bit
+        localsize &= ~3UL;
+        // fake top bits as writeable even for devices that only accept 16 bit I/O addresses
+        localsize |= 0xFFFF0000UL;
+    }
+    
     *barsize = -localsize;
 
     return status;
@@ -210,38 +219,75 @@ char *nice_size(unsigned long size)
     return sizebuf;
 }
 
-void dump_bar(dev_addr addr, unsigned int bar)
+int dump_bar(dev_addr addr, unsigned int bar)
 {
     unsigned long barval;
+    unsigned long barval_high;
     unsigned long barsize;
+    unsigned long barsize_high;
+    int bar_width;
+
+    bar_width = 4;  // typical BARs are 32 bits (4 bytes) wide
     if (pci_read_dword(addr, bar, &barval) >= 0)
     {
         if (barval & 1)
         {
             if (read_barsize(addr, bar, barval, CMD_IO, &barsize) >= 0)
             {
-                barval &= ~1L;
-                printf("  %02x: PIO  at %04lx..%04lx\n", bar, barval, barval + barsize);
+                barval &= ~3L;
+                printf("  %02x: PIO  at %04lx..%04lx\n", bar, barval, barval + barsize - 1);
             }
         }
         else
         {
+            unsigned char barflags;
+            const char *memkind;
+
+            barflags =  barval & 0xF;
+            memkind = (barflags & 8) ? "MEM " : "MMIO";
             if (read_barsize(addr, bar, barval, CMD_MEM, &barsize) >= 0 &&
-                (barsize & ~0xFL) != 0)
+                // "unimplemented BARs are hardwired to zero"
+                // read_barsize returns 0 if a BAR is unimplemented, or if the alignment
+                // requirement is 4G or higher (64-bit BARs). To differentiate, also look
+                // at barflags, which is non-zero on 64-bit BARs.
+                (barflags != 0 || barsize != 0))
             {
-                unsigned char barflags = barval & 0xF;
                 barval &= ~0x0FL;
-                if (barflags & 8)
-                    printf("  %02x: MEM  at %08lx..%08lx (%s)\n",
-                           bar, barval, (barval + barsize + 8),
-                           nice_size(barsize + 8));
-                else
-                    printf("  %02x: MMIO at %08lx..%08lx (%s)\n",
-                           bar, barval, (barval + barsize),
-                           nice_size(barsize));
+                switch(barflags & 0x6)
+                {
+                case 0:
+                    // normal 32-bit memory space
+                    printf("  %02x: %s at %08lx..%08lx (%s)\n",
+                        bar, memkind, barval, (barval + barsize - 1),
+                        nice_size(barsize));
+                    break;
+                case 2:
+                    // Old PCI cards: 1MB memory space
+                    printf("  %02x: %s at %05lx..%05lx (%s)\n",
+                        bar, memkind, barval, (barval + barsize - 1),
+                        nice_size(barsize));
+                    break;
+                case 4:
+                    // 64-bit memory space
+                    if (pci_read_dword(addr, bar + 4, &barval_high) >= 0 &&
+                        read_barsize(addr, bar + 4, barval_high, CMD_MEM, &barsize_high) >= 0)
+                    {
+                        if (barsize == 0)  // this actually means 4G
+                            barsize_high++;
+                        printf("  %02x: %s at %08lx%08lx..%08lx%08lx (%s)\n",
+                            bar, memkind, barval_high, barval, (barval_high + barsize_high), (barval + barsize - 1),
+                            nice_size(barsize));
+                    }
+                    bar_width = 8;
+                    break;
+                default:
+                    printf("  %02x: unhandled memory BAR type\n");
+                    break;
+                }
             }
         }
     }
+    return bar_width;
 }
 
 void dump_rombar(dev_addr addr, unsigned bar)
@@ -258,7 +304,7 @@ void dump_rombar(dev_addr addr, unsigned bar)
             unsigned long barsize;
             if (read_barsize(addr, bar, barval, CMD_MEM, &barsize) >= 0 &&
                 barsize != 0)
-                printf("  ROM (disabled), area size %08lx (%s)\n", barsize + 1, nice_size(barsize + 1));
+                printf("  ROM (disabled), area size %08lx (%s)\n", barsize, nice_size(barsize));
         }
     }
 }
@@ -266,9 +312,9 @@ void dump_rombar(dev_addr addr, unsigned bar)
 void dump_resources(dev_addr addr)
 {
     unsigned int bar;
-    for (bar = 0x10; bar <= 0x20; bar += 4)
+    for (bar = 0x10; bar <= 0x20;)
     {
-        dump_bar(addr, bar);
+        bar += dump_bar(addr, bar);
     }
     dump_rombar(addr, 0x30);
 }
