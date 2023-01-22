@@ -357,7 +357,7 @@ void dump_bridge(dev_addr addr)
         memhigh |= 0x000F;
         if (memtype == 0)
         {
-            printf("  forwarding MEM  %04x0000..%04lxffff (%s)\n",
+            printf("  forwarding MEM  %04x0000..%04xffff (%s)\n",
                   memlow, memhigh,
                   nice_size((unsigned long)(((memhigh-memlow) & 0xFFF0) + 0x10) << 16));            
         }
