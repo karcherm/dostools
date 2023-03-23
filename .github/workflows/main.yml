@@ -12,6 +12,7 @@ jobs:
       - run: wcc -0 -fo=pcibase.obj pcibase.c
       - run: wcc -3 -fo=pcilib.obj pcilib.c
       - run: wcl -3 pci.c pcibase.obj pcilib.obj
+      - run: wcl -0 hw.c pcibase.obj pcilib.obj
       - uses: actions/upload-artifact@v3
         with:
           name: dostools
